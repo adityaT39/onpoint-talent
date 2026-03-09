@@ -21,26 +21,30 @@ const features = [
   },
 ];
 
+// Three-column feature grid explaining the platform's core value propositions
 export default function WhySection() {
   return (
-    <section className="bg-[#f8f9fa] py-20 px-6">
+    <section className="bg-[#eff6ff] dark:bg-[#0e1a2e] py-20 px-6">
       <div className="max-w-6xl mx-auto">
-        <h2 className="text-3xl font-bold text-center text-[#1a1a2e] mb-12">
+        {/* Heading */}
+        <h2 className="text-3xl font-bold text-center text-[#0f172a] dark:text-[#f1f5f9] mb-12 tracking-tight">
           Why OnPoint Talent?
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+        {/* Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {features.map((feature) => {
             const Icon = feature.icon;
             return (
               <div
                 key={feature.title}
-                className="bg-white rounded-xl p-8 shadow-sm flex flex-col items-start gap-4"
+                className="bg-white dark:bg-[#152237] rounded-2xl p-8 shadow-sm dark:shadow-none flex flex-col items-start gap-4 border border-blue-100 dark:border-[#1e3356]"
               >
-                <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                  <Icon className="w-6 h-6 text-[#3b6fd4]" />
+                <div className="w-11 h-11 bg-[#eff6ff] dark:bg-[#0e1a2e] rounded-xl flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-[#2563eb] dark:text-[#60a5fa]" />
                 </div>
-                <h3 className="text-lg font-semibold text-[#1a1a2e]">{feature.title}</h3>
-                <p className="text-[#6b7280] leading-relaxed text-sm">{feature.description}</p>
+                <h3 className="text-base font-semibold text-[#0f172a] dark:text-[#f1f5f9]">{feature.title}</h3>
+                <p className="text-[#64748b] dark:text-[#94a3b8] leading-relaxed text-sm">{feature.description}</p>
               </div>
             );
           })}

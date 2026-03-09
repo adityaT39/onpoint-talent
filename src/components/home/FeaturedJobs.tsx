@@ -39,40 +39,44 @@ const jobs = [
   },
 ];
 
+// Grid of sample job listing cards to showcase available opportunities
 export default function FeaturedJobs() {
   return (
-    <section className="bg-[#f8f9fa] py-20 px-6">
+    <section className="bg-[#eff6ff] dark:bg-[#080e1c] py-20 px-6">
       <div className="max-w-6xl mx-auto">
-        <h2 className="text-3xl font-bold text-center text-[#1a1a2e] mb-3">
+        {/* Heading */}
+        <h2 className="text-3xl font-bold text-center text-[#0f172a] dark:text-[#f1f5f9] mb-3 tracking-tight">
           Featured Opportunities
         </h2>
-        <p className="text-center text-[#6b7280] mb-12">
+
+        {/* Subtext */}
+        <p className="text-center text-[#64748b] dark:text-[#94a3b8] text-sm mb-12">
           Explore some of the latest roles posted by employers on OnPoint Talent.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        {/* Job Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {jobs.map((job, i) => (
             <div
               key={i}
-              className="bg-white rounded-xl p-6 shadow-sm flex flex-col gap-4 hover:shadow-md transition-shadow"
+              className="bg-white dark:bg-[#0e1a2e] rounded-2xl p-6 shadow-sm dark:shadow-none flex flex-col gap-4 border border-blue-100 dark:border-[#1e3356] hover:shadow-md dark:hover:border-[#3b82f6] transition-all"
             >
-              <div>
-                <h3 className="text-base font-semibold text-[#1a1a2e]">{job.title}</h3>
-              </div>
-              <div className="flex flex-col gap-2 text-sm text-[#6b7280]">
+              <h3 className="text-base font-semibold text-[#0f172a] dark:text-[#f1f5f9]">{job.title}</h3>
+              <div className="flex flex-col gap-2 text-sm text-[#64748b] dark:text-[#94a3b8]">
                 <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-[#3b6fd4]" />
+                  <Building2 className="w-4 h-4 text-[#2563eb] dark:text-[#60a5fa]" />
                   <span>{job.company}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-[#3b6fd4]" />
+                  <MapPin className="w-4 h-4 text-[#2563eb] dark:text-[#60a5fa]" />
                   <span>{job.location}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-[#3b6fd4]" />
+                  <DollarSign className="w-4 h-4 text-[#2563eb] dark:text-[#60a5fa]" />
                   <span>{job.salary}</span>
                 </div>
               </div>
-              <button className="mt-auto w-full py-2.5 text-sm font-semibold text-white bg-[#3b6fd4] rounded-lg hover:bg-blue-700 transition-colors">
+              <button className="mt-auto w-full py-2.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors">
                 View Job
               </button>
             </div>

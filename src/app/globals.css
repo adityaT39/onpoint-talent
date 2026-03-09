@@ -1,15 +1,12 @@
+/* Tailwind base */
 @import "tailwindcss";
 
-@theme inline {
-  --color-navy: #1e2d4d;
-  --color-blue-accent: #3b6fd4;
-  --color-gray-bg: #f8f9fa;
-  --color-text-dark: #1a1a2e;
-  --color-text-muted: #6b7280;
-}
+/* Dark mode variant — toggled via .dark class on <html> */
+@custom-variant dark (&:where(.dark, .dark *));
 
+/* Body defaults */
 body {
   background: #ffffff;
-  color: #1a1a2e;
+  color: #0f172a;
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }

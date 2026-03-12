@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OnPoint Talent
+
+A job board prototype built with Next.js, TypeScript, and Tailwind CSS. Connects job seekers with employers — no backend required; all data is stored in `localStorage`.
+
+---
+
+## Features
+
+- **Job seekers** — browse listings, apply with a cover letter and PDF resume, manage their profile
+- **Employers** — post jobs, view applicants per listing, update application statuses (pending / interview / rejected), download resumes
+- **Auth** — sign up / log in as seeker or employer; role-aware navigation and redirects
+- **Dark mode** — system-aware with manual toggle
+
+---
+
+## Prerequisites
+
+| Tool | Version |
+|------|---------|
+| Node.js | 18 or later |
+| npm | 9 or later (comes with Node) |
+
+Check your versions:
+
+```bash
+node -v
+npm -v
+```
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone the repo
+
+```bash
+git clone <your-repo-url>
+cd onpoint-talent
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Run the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Build for Production
 
-## Learn More
+```bash
+npm run build
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├── app/                  # Next.js App Router pages
+│   ├── about/
+│   ├── employer/         # Employer dashboard
+│   ├── for-employers/
+│   ├── jobs/             # Job listings
+│   ├── login/
+│   ├── post-job/
+│   ├── pricing/
+│   ├── profile/          # Seeker profile editor
+│   └── signup/
+├── components/
+│   ├── auth/             # LoginForm, SignupForm
+│   ├── employer/         # EmployerDashboard
+│   ├── home/             # Navbar, HeroSection, Footer, CtaBanner
+│   ├── jobs/             # JobListings, PostJobForm
+│   └── seeker/           # ProfileEditor
+├── context/
+│   └── AuthContext.tsx   # Auth state + useAuth hook
+├── lib/
+│   └── extractSkills.ts  # Keyword skill extraction for job posts
+└── types/
+    └── index.ts          # Shared TypeScript types
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## localStorage Keys
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All data lives in the browser — no database or API calls needed.
+
+| Key | Contents |
+|-----|----------|
+| `onpoint_users` | Registered user accounts |
+| `onpoint_session` | Currently logged-in user |
+| `onpoint_jobs` | Posted job listings |
+| `onpoint_applications` | Job applications (with base64 resume) |
+| `onpoint_profiles` | Seeker profile data |
+| `theme` | `"dark"` or `"light"` preference |
+
+To reset all data, open DevTools → Application → Local Storage and clear the keys above.
+
+---
+
+## Tech Stack
+
+- [Next.js 16](https://nextjs.org/) (App Router)
+- [React 19](https://react.dev/)
+- [TypeScript 5](https://www.typescriptlang.org/)
+- [Tailwind CSS 4](https://tailwindcss.com/)
+- [Lucide React](https://lucide.dev/) — icons
+
+---
+
+## Notes
+
+- Passwords are stored in plaintext in `localStorage` — this is a prototype only, not for production use.
+- Resume files are stored as base64 data URIs in `localStorage`. Large PDFs (>1–2 MB) may approach storage limits in some browsers.
+- No `.env` file is needed to run this project.

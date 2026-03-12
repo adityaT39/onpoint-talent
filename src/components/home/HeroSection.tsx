@@ -20,12 +20,12 @@ export default function HeroSection() {
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button className="px-8 py-3.5 text-sm font-semibold bg-[#2563eb] dark:bg-[#3b82f6] text-white rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-lg">
+          <a href="/signup?role=employer" className="px-8 py-3.5 text-sm font-semibold bg-[#2563eb] dark:bg-[#3b82f6] text-white rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-lg">
             Look for Talent
-          </button>
-          <button className="px-8 py-3.5 text-sm font-semibold bg-white dark:bg-transparent text-[#0f2044] dark:text-white rounded-full hover:bg-blue-50 dark:border dark:border-[#1e3356] dark:hover:bg-[#152237] transition-colors shadow-md">
+          </a>
+          <a href="/jobs" className="px-8 py-3.5 text-sm font-semibold bg-white dark:bg-transparent text-[#0f2044] dark:text-white rounded-full hover:bg-blue-50 dark:border dark:border-[#1e3356] dark:hover:bg-[#152237] transition-colors shadow-md">
             Find a Job
-          </button>
+          </a>
         </div>
       </div>
     </section>

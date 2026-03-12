@@ -1,5 +1,14 @@
+"use client";
+import { useAuth } from "@/context/AuthContext";
+
 // Centered call-to-action banner prompting users to browse jobs or post a listing
 export default function CtaBanner() {
+  const { user, mounted } = useAuth();
+
+  // Only hide Post a Job after mount, when we know the user is a seeker.
+  // Pre-mount shows both buttons to match SSR.
+  const hidePostJob = mounted && user?.role === "seeker";
+
   return (
     <section className="bg-white dark:bg-[#0e1a2e] py-20 px-6">
       <div className="max-w-3xl mx-auto text-center">
@@ -13,12 +22,14 @@ export default function CtaBanner() {
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button className="px-8 py-3.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm">
+          <a href="/jobs" className="inline-block px-8 py-3.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm">
             Browse All Jobs
-          </button>
-          <button className="px-8 py-3.5 text-sm font-semibold text-[#2563eb] dark:text-[#60a5fa] border border-[#2563eb] dark:border-[#3b82f6] rounded-full hover:bg-[#eff6ff] dark:hover:bg-[#152237] transition-colors">
-            Post a Job
-          </button>
+          </a>
+          {!hidePostJob && (
+            <a href="/post-job" className="inline-block px-8 py-3.5 text-sm font-semibold text-[#2563eb] dark:text-[#60a5fa] border border-[#2563eb] dark:border-[#3b82f6] rounded-full hover:bg-[#eff6ff] dark:hover:bg-[#152237] transition-colors">
+              Post a Job
+            </a>
+          )}
         </div>
       </div>
     </section>

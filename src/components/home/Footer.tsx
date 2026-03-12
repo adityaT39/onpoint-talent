@@ -1,7 +1,21 @@
-const links = {
-  Team: ["About Us", "Careers", "Contact"],
-  Services: ["Post a Job", "Browse Jobs", "For Employers"],
-  Legal: ["Privacy Policy", "Terms of Use", "Cookie Policy"],
+type LinkEntry = { label: string; href: string };
+
+const links: Record<string, LinkEntry[]> = {
+  Team: [
+    { label: "About Us", href: "/about" },
+    { label: "Careers", href: "#" },
+    { label: "Contact", href: "#" },
+  ],
+  Services: [
+    { label: "Post a Job", href: "/post-job" },
+    { label: "Browse Jobs", href: "#" },
+    { label: "For Employers", href: "/for-employers" },
+  ],
+  Legal: [
+    { label: "Privacy Policy", href: "#" },
+    { label: "Terms of Use", href: "#" },
+    { label: "Cookie Policy", href: "#" },
+  ],
 };
 
 // Site footer with brand tagline, link columns, and copyright line
@@ -27,13 +41,13 @@ export default function Footer() {
             <div key={heading}>
               <h4 className="font-semibold text-white text-sm mb-4">{heading}</h4>
               <ul className="flex flex-col gap-2.5">
-                {pages.map((page) => (
-                  <li key={page}>
+                {pages.map(({ label, href }) => (
+                  <li key={label}>
                     <a
-                      href="#"
+                      href={href}
                       className="text-blue-200 dark:text-[#64748b] text-sm hover:text-white dark:hover:text-[#94a3b8] transition-colors"
                     >
-                      {page}
+                      {label}
                     </a>
                   </li>
                 ))}

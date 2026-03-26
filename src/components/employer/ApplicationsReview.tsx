@@ -2,7 +2,48 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Building2, MapPin, DollarSign, Download, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { createClient } from "@/lib/supabase";
 import type { Job, Application } from "@/types";
+
+// ── Supabase helpers ───────────────────────────────────────────────────────
+
+function mapJob(row: Record<string, unknown>): Job {
+  return {
+    id: row.id as string,
+    employerId: row.employer_id as string | null,
+    title: row.title as string,
+    company: row.company as string,
+    location: row.location as string,
+    type: row.type as string,
+    salary: (row.salary as string) ?? "",
+    description: (row.description as string) ?? "",
+    requirements: (row.requirements as string) ?? "",
+    requiredSkills: (row.required_skills as string[]) ?? [],
+    postedAt: row.posted_at as string,
+  };
+}
+
+function mapApplication(row: Record<string, unknown>): Application {
+  return {
+    id: row.id as string,
+    jobId: row.job_id as string,
+    employerId: row.employer_id as string | null,
+    seekerId: row.seeker_id as string,
+    seekerName: (row.seeker_name as string) ?? "",
+    seekerEmail: (row.seeker_email as string) ?? "",
+    phone: (row.phone as string) ?? "",
+    location: (row.location as string) ?? "",
+    summary: (row.summary as string) ?? "",
+    experience: (row.experience as Application["experience"]) ?? [],
+    education: (row.education as Application["education"]) ?? [],
+    skills: (row.skills as string[]) ?? [],
+    coverLetter: (row.cover_letter as string) ?? "",
+    resumeName: row.resume_name as string | undefined,
+    resumeUrl: row.resume_url as string | undefined,
+    appliedAt: row.applied_at as string,
+    status: row.status as Application["status"],
+  };
+}
 
 // ── Skill matching helper ─────────────────────────────────────────────────
 
@@ -37,10 +78,12 @@ type ApplicantCardProps = {
   isUnlocked: boolean;
   requiredSkills: string[];
   onStatusChange(appId: string, status: Application["status"]): void;
-  onDownload(resumeData: string, resumeName: string): void;
+  onDownload(resumeUrl: string, resumeName: string): void;
+  onSendInvite(appId: string): void;
+  inviteSent: boolean;
 };
 
-function ApplicantCard({ app, isUnlocked, requiredSkills, onStatusChange, onDownload }: ApplicantCardProps) {
+function ApplicantCard({ app, isUnlocked, requiredSkills, onStatusChange, onDownload, onSendInvite, inviteSent }: ApplicantCardProps) {
   const [showCoverLetter, setShowCoverLetter] = useState(false);
 
   return (
@@ -233,11 +276,11 @@ function ApplicantCard({ app, isUnlocked, requiredSkills, onStatusChange, onDown
       )}
 
       {/* Resume — locked */}
-      {(app.resumeName || app.resumeData) && (
+      {(app.resumeName || app.resumeUrl) && (
         <div className="mt-3">
           {isUnlocked ? (
             <button
-              onClick={() => onDownload(app.resumeData!, app.resumeName!)}
+              onClick={() => onDownload(app.resumeUrl!, app.resumeName!)}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-[#eff6ff] dark:bg-[#152237] border border-blue-100 dark:border-[#1e3356] text-[#0f172a] dark:text-[#f1f5f9] hover:bg-blue-100 dark:hover:bg-[#1e3356] transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
@@ -281,6 +324,19 @@ function ApplicantCard({ app, isUnlocked, requiredSkills, onStatusChange, onDown
             Move back to Pending
           </button>
         )}
+        {app.status === "interview" && (
+          <button
+            onClick={() => onSendInvite(app.id)}
+            disabled={inviteSent}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+              inviteSent
+                ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 cursor-default"
+                : "bg-white dark:bg-[#0e1a2e] text-[#2563eb] dark:text-[#60a5fa] border-[#2563eb] dark:border-[#3b82f6] hover:bg-[#eff6ff] dark:hover:bg-[#152237]"
+            }`}
+          >
+            {inviteSent ? "Invitation Sent ✓" : "Send Interview Invitation"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -298,7 +354,9 @@ type ColumnProps = {
   isUnlocked: boolean;
   requiredSkills: string[];
   onStatusChange(appId: string, status: Application["status"]): void;
-  onDownload(resumeData: string, resumeName: string): void;
+  onDownload(resumeUrl: string, resumeName: string): void;
+  onSendInvite(appId: string): void;
+  sentInviteIds: Set<string>;
 };
 
 const headerColors: Record<ColumnColor, string> = {
@@ -308,7 +366,7 @@ const headerColors: Record<ColumnColor, string> = {
   red: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
 };
 
-function Column({ title, count, color, apps, isUnlocked, requiredSkills, onStatusChange, onDownload }: ColumnProps) {
+function Column({ title, count, color, apps, isUnlocked, requiredSkills, onStatusChange, onDownload, onSendInvite, sentInviteIds }: ColumnProps) {
   return (
     <div className="flex flex-col gap-3">
       <div
@@ -331,6 +389,8 @@ function Column({ title, count, color, apps, isUnlocked, requiredSkills, onStatu
             requiredSkills={requiredSkills}
             onStatusChange={onStatusChange}
             onDownload={onDownload}
+            onSendInvite={onSendInvite}
+            inviteSent={sentInviteIds.has(app.id)}
           />
         ))
       )}
@@ -347,20 +407,53 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<Job | null | "not-found">(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [sentInviteIds, setSentInviteIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!mounted || !user) return;
-    const jobs: Job[] = JSON.parse(localStorage.getItem("onpoint_jobs") ?? "[]");
-    const found = jobs.find((j) => j.id === jobId);
-    setJob(found ?? "not-found");
+    const supabase = createClient();
 
-    const allApps: Application[] = JSON.parse(
-      localStorage.getItem("onpoint_applications") ?? "[]"
-    );
-    setApplications(allApps.filter((a) => a.jobId === jobId));
+    supabase
+      .from("jobs")
+      .select("*")
+      .eq("id", jobId)
+      .single()
+      .then(({ data }) => {
+        setJob(data ? mapJob(data) : "not-found");
+      });
+
+    supabase
+      .from("applications")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("applied_at", { ascending: false })
+      .then(({ data }) => {
+        setApplications((data ?? []).map(mapApplication));
+      });
   }, [mounted, user, jobId]);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <div className="h-8 w-48 bg-slate-200 dark:bg-[#1e3356] rounded-lg mb-2 animate-pulse" />
+        <div className="h-4 w-32 bg-slate-100 dark:bg-[#152237] rounded mb-8 animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {[...Array(3)].map((_, col) => (
+            <div key={col} className="bg-white dark:bg-[#0e1a2e] rounded-2xl border border-blue-100 dark:border-[#1e3356] p-4">
+              <div className="h-5 w-24 bg-slate-200 dark:bg-[#1e3356] rounded mb-4 animate-pulse" />
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="rounded-xl border border-slate-100 dark:border-[#1e3356] p-4 mb-3 flex flex-col gap-2">
+                  <div className="h-4 w-3/4 bg-slate-200 dark:bg-[#1e3356] rounded animate-pulse" />
+                  <div className="h-3 w-1/2 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+                  <div className="h-3 w-2/5 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Access guard ─────────────────────────────────────────────────────
   if (!user || user.role !== "employer") {
@@ -411,7 +504,28 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
   }
 
   // ── Loading state ────────────────────────────────────────────────────
-  if (job === null) return null;
+  if (job === null) {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <div className="h-8 w-48 bg-slate-200 dark:bg-[#1e3356] rounded-lg mb-2 animate-pulse" />
+        <div className="h-4 w-32 bg-slate-100 dark:bg-[#152237] rounded mb-8 animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {[...Array(3)].map((_, col) => (
+            <div key={col} className="bg-white dark:bg-[#0e1a2e] rounded-2xl border border-blue-100 dark:border-[#1e3356] p-4">
+              <div className="h-5 w-24 bg-slate-200 dark:bg-[#1e3356] rounded mb-4 animate-pulse" />
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="rounded-xl border border-slate-100 dark:border-[#1e3356] p-4 mb-3 flex flex-col gap-2">
+                  <div className="h-4 w-3/4 bg-slate-200 dark:bg-[#1e3356] rounded animate-pulse" />
+                  <div className="h-3 w-1/2 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+                  <div className="h-3 w-2/5 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Derived lists ────────────────────────────────────────────────────
   const requiredSkills = job.requiredSkills ?? [];
@@ -431,22 +545,59 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
   const rejected = filtered.filter((a) => a.status === "rejected");
 
   // ── Handlers ─────────────────────────────────────────────────────────
-  function handleStatusChange(appId: string, status: Application["status"]) {
-    const all: Application[] = JSON.parse(
-      localStorage.getItem("onpoint_applications") ?? "[]"
-    );
-    const updated = all.map((a) => (a.id === appId ? { ...a, status } : a));
-    localStorage.setItem("onpoint_applications", JSON.stringify(updated));
+  async function handleStatusChange(appId: string, status: Application["status"]) {
+    const supabase = createClient();
+    await supabase.from("applications").update({ status }).eq("id", appId);
     setApplications((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a)));
+
+    // Auto-send rejection email
+    if (status === "rejected" && job && job !== "not-found") {
+      const app = applications.find((a) => a.id === appId);
+      if (app) {
+        fetch("/api/applications/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "rejected",
+            seekerEmail: app.seekerEmail,
+            seekerName: app.seekerName,
+            jobTitle: job.title,
+            company: job.company,
+          }),
+        });
+      }
+    }
   }
 
-  function handleDownload(resumeData: string, resumeName: string) {
-    const a = document.createElement("a");
-    a.href = resumeData;
-    a.download = resumeName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  async function handleSendInvite(appId: string) {
+    if (!job || job === "not-found") return;
+    const app = applications.find((a) => a.id === appId);
+    if (!app) return;
+    setSentInviteIds((prev) => new Set(prev).add(appId));
+    fetch("/api/applications/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "interview",
+        seekerEmail: app.seekerEmail,
+        seekerName: app.seekerName,
+        jobTitle: job.title,
+        company: job.company,
+      }),
+    });
+  }
+
+  async function handleDownload(resumeUrl: string, resumeName: string) {
+    const supabase = createClient();
+    const { data } = await supabase.storage.from("resumes").createSignedUrl(resumeUrl, 3600);
+    if (data?.signedUrl) {
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.download = resumeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -553,6 +704,8 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
           requiredSkills={requiredSkills}
           onStatusChange={handleStatusChange}
           onDownload={handleDownload}
+          onSendInvite={handleSendInvite}
+          sentInviteIds={sentInviteIds}
         />
         <Column
           title="Interview"
@@ -563,6 +716,8 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
           requiredSkills={requiredSkills}
           onStatusChange={handleStatusChange}
           onDownload={handleDownload}
+          onSendInvite={handleSendInvite}
+          sentInviteIds={sentInviteIds}
         />
         <Column
           title="Rejected"
@@ -573,6 +728,8 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
           requiredSkills={requiredSkills}
           onStatusChange={handleStatusChange}
           onDownload={handleDownload}
+          onSendInvite={handleSendInvite}
+          sentInviteIds={sentInviteIds}
         />
       </div>
     </div>

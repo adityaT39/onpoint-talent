@@ -1,8 +1,7 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import type { SeekerProfile } from "@/types";
 
 type Role = "seeker" | "employer";
 
@@ -88,33 +87,19 @@ function inputClass(error?: string) {
 // ── Component ────────────────────────────────────────────────────────────
 
 export default function SignupForm() {
-  const { signup, user } = useAuth();
+  const { signup } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole: Role = searchParams.get("role") === "employer" ? "employer" : "seeker";
   const [role, setRole] = useState<Role>(initialRole);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Step 1 state
-  const [step, setStep] = useState<1 | 2>(1);
   const [fields, setFields] = useState<Fields>({
     name: "", company: "", email: "", password: "", confirm: "",
   });
   const [errors, setErrors] = useState<Errors>({});
   const [touched, setTouched] = useState<Touched>({});
   const [serverError, setServerError] = useState<string | null>(null);
-
-  // Step 2 state (seeker profile)
-  const [profileDraft, setProfileDraft] = useState({
-    phone: "", location: "", summary: "", skills: [] as string[],
-    resumeName: "", resumeData: "",
-  });
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [skillInput, setSkillInput] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-
-  // ── Step 1 handlers ─────────────────────────────────────────────────────
 
   function handleChange(key: keyof Fields, raw: string, filter?: (v: string) => string) {
     const value = filter ? filter(raw) : raw;
@@ -141,7 +126,7 @@ export default function SignupForm() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const allTouched: Touched = { name: true, email: true, password: true, confirm: true };
     if (role === "employer") allTouched.company = true;
@@ -151,241 +136,23 @@ export default function SignupForm() {
     setErrors(errs);
 
     if (Object.keys(errs).length === 0) {
-      const result = signup({
+      setSubmitting(true);
+      const result = await signup({
         name: fields.name,
         email: fields.email,
         password: fields.password,
         role,
         company: role === "employer" ? fields.company : undefined,
       });
+      setSubmitting(false);
       if (result.error) {
         setServerError(result.error);
-      } else if (result.role === "employer") {
-        router.push("/employer");
       } else {
-        // seeker → step 2
-        setStep(2);
+        // Store email so verify-email page can resend without an active session
+        sessionStorage.setItem("pending_verify_email", fields.email);
+        router.push("/verify-email");
       }
     }
-  }
-
-  // ── Step 2 handlers ─────────────────────────────────────────────────────
-
-  function handleResumeFile(file: File | null) {
-    if (!file) return;
-    if (file.type !== "application/pdf") {
-      setScanError("Please upload a PDF file");
-      return;
-    }
-    if (file.size > 4 * 1024 * 1024) {
-      setScanError("File must be smaller than 4 MB");
-      return;
-    }
-    setScanError(null);
-    setResumeFile(file);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setProfileDraft((d) => ({
-        ...d,
-        resumeName: file.name,
-        resumeData: reader.result as string,
-      }));
-    };
-    reader.onerror = () => {
-      setScanError("Failed to read file.");
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function addSkill() {
-    const trimmed = skillInput.trim();
-    if (!trimmed || profileDraft.skills.includes(trimmed)) return;
-    setProfileDraft((d) => ({ ...d, skills: [...d.skills, trimmed] }));
-    setSkillInput("");
-  }
-
-  function removeSkill(skill: string) {
-    setProfileDraft((d) => ({ ...d, skills: d.skills.filter((s) => s !== skill) }));
-  }
-
-  function saveProfile() {
-    const currentUser = user;
-    if (!currentUser) return;
-    const profile: SeekerProfile = {
-      userId: currentUser.id,
-      ...profileDraft,
-      updatedAt: new Date().toISOString(),
-    };
-    try {
-      const existing: SeekerProfile[] = JSON.parse(localStorage.getItem("onpoint_profiles") ?? "[]");
-      const others = existing.filter((p) => p.userId !== currentUser.id);
-      localStorage.setItem("onpoint_profiles", JSON.stringify([profile, ...others]));
-    } catch {
-      // storage error — proceed anyway
-    }
-    router.push("/profile");
-  }
-
-  // ── Render ───────────────────────────────────────────────────────────────
-
-  if (step === 2) {
-    return (
-      <div
-        className="relative z-10 w-full max-w-md bg-white dark:bg-[#0e1a2e] rounded-2xl border border-blue-100 dark:border-[#1e3356] shadow-sm dark:shadow-none p-8"
-        style={{ animation: "fade-slide-up 0.5s ease-out forwards" }}
-      >
-        <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] tracking-tight mb-1">
-          One last step
-        </h1>
-        <p className="text-sm text-[#64748b] dark:text-[#94a3b8] mb-6">
-          Upload your resume so employers can download it, and fill in your profile details below.
-        </p>
-
-        {/* Resume drop zone */}
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            handleResumeFile(e.dataTransfer.files?.[0] ?? null);
-          }}
-          onClick={() => fileInputRef.current?.click()}
-          className={`flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed cursor-pointer transition mb-4 ${
-            dragging
-              ? "border-[#2563eb] bg-[#eff6ff] dark:bg-[#152237]"
-              : "border-slate-200 dark:border-[#1e3356] hover:border-[#2563eb] dark:hover:border-[#3b82f6] hover:bg-slate-50 dark:hover:bg-[#0a1628]"
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            className="hidden"
-            onChange={(e) => handleResumeFile(e.target.files?.[0] ?? null)}
-          />
-          {resumeFile ? (
-            <>
-              <p className="text-sm font-semibold text-emerald-500 dark:text-emerald-400">
-                {resumeFile.name}
-              </p>
-              <p className="text-xs text-[#64748b] dark:text-[#94a3b8]">Click to replace</p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">
-                Drop your resume here
-              </p>
-              <p className="text-xs text-[#64748b] dark:text-[#94a3b8]">
-                PDF only · max 4 MB · click to browse
-              </p>
-            </>
-          )}
-        </div>
-
-        {scanError && (
-          <p className="text-xs text-red-500 dark:text-red-400 mb-4">{scanError}</p>
-        )}
-
-        {/* Profile fields */}
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">Phone</label>
-            <input
-              type="tel"
-              value={profileDraft.phone}
-              onChange={(e) => setProfileDraft((d) => ({ ...d, phone: e.target.value }))}
-              placeholder="e.g. +64 21 123 4567"
-              className={inputClass()}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">Location</label>
-            <input
-              type="text"
-              value={profileDraft.location}
-              onChange={(e) => setProfileDraft((d) => ({ ...d, location: e.target.value }))}
-              placeholder="e.g. Auckland, Wellington"
-              className={inputClass()}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">Professional Summary</label>
-            <textarea
-              value={profileDraft.summary}
-              onChange={(e) => setProfileDraft((d) => ({ ...d, summary: e.target.value }))}
-              placeholder="Brief overview of your background and what you bring…"
-              rows={3}
-              className={`${inputClass()} resize-y`}
-            />
-          </div>
-
-          {/* Skills tag input */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">Skills</label>
-            {profileDraft.skills.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-1">
-                {profileDraft.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full bg-[#eff6ff] dark:bg-[#152237] text-[#2563eb] dark:text-[#60a5fa]"
-                  >
-                    {skill}
-                    <button
-                      type="button"
-                      onClick={() => removeSkill(skill)}
-                      className="ml-1 text-[#2563eb] dark:text-[#60a5fa] hover:text-[#1d4ed8] dark:hover:text-white"
-                      aria-label={`Remove ${skill}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={skillInput}
-                onChange={(e) => setSkillInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); addSkill(); }
-                }}
-                placeholder="Type a skill and press Enter or Add"
-                className={inputClass()}
-              />
-              <button
-                type="button"
-                onClick={addSkill}
-                className="shrink-0 px-4 py-2.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-xl hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-3 mt-6">
-          <button
-            type="button"
-            onClick={saveProfile}
-            className="flex-1 py-3 text-sm font-semibold text-[#64748b] dark:text-[#94a3b8] border border-slate-200 dark:border-[#1e3356] rounded-full hover:bg-slate-50 dark:hover:bg-[#152237] transition-colors"
-          >
-            Skip for now
-          </button>
-          <button
-            type="button"
-            onClick={saveProfile}
-            className="flex-1 py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm"
-          >
-            Save Profile
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -533,9 +300,10 @@ export default function SignupForm() {
         {/* Submit */}
         <button
           type="submit"
-          className="mt-2 w-full py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm"
+          disabled={submitting}
+          className="mt-2 w-full py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Create Account
+          {submitting ? "Creating account…" : "Create Account"}
         </button>
       </form>
 

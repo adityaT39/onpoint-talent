@@ -4,7 +4,10 @@ import Footer from "@/components/home/Footer";
 import SignupForm from "@/components/auth/SignupForm";
 import AuthPageBackground from "@/components/auth/AuthPageBackground";
 
-export const metadata = { title: "Sign Up — OnPoint Talent" };
+export const metadata = {
+  title: "Sign Up — OnPoint Talent",
+  description: "Create your free OnPoint Talent account. Find jobs or post listings as an employer.",
+};
 
 // Signup route — centered form card between Navbar and Footer
 export default function SignupPage() {

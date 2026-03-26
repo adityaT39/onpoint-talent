@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import ApplicationsReview from "@/components/employer/ApplicationsReview";
+
+export const metadata: Metadata = {
+  title: "Applications — OnPoint Talent",
+  robots: { index: false, follow: false },
+};
 
 export default async function ApplicationsPage({
   params,

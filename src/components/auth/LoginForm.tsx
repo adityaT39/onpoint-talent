@@ -45,7 +45,9 @@ function inputClass(error?: string) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function LoginForm() {
+type Props = { resetSuccess?: boolean; verificationError?: boolean };
+
+export default function LoginForm({ resetSuccess, verificationError }: Props) {
   const { login } = useAuth();
   const router = useRouter();
   const [fields, setFields] = useState<Fields>({ email: "", password: "" });
@@ -70,13 +72,13 @@ export default function LoginForm() {
     setErrors((e) => ({ ...e, [key]: all[key] }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setTouched({ email: true, password: true });
     const errs = validate(fields);
     setErrors(errs);
     if (Object.keys(errs).length === 0) {
-      const result = login(fields.email, fields.password);
+      const result = await login(fields.email, fields.password);
       if (result.error) setServerError(result.error);
       else router.push(result.role === "employer" ? "/employer" : "/jobs");
     }
@@ -87,6 +89,18 @@ export default function LoginForm() {
       className="relative z-10 w-full max-w-md bg-white dark:bg-[#0e1a2e] rounded-2xl border border-blue-100 dark:border-[#1e3356] shadow-sm dark:shadow-none p-8"
       style={{ animation: "fade-slide-up 0.5s ease-out forwards" }}
     >
+
+      {/* Success / error banners */}
+      {resetSuccess && (
+        <div className="mb-5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+          Password updated — log in with your new password.
+        </div>
+      )}
+      {verificationError && (
+        <div className="mb-5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+          Email verification failed. Please try again or contact support.
+        </div>
+      )}
 
       {/* Heading */}
       <h1 className="text-2xl font-bold text-[#0f172a] dark:text-[#f1f5f9] tracking-tight mb-1">

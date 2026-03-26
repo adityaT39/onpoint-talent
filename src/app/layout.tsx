@@ -9,6 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://onpointtalent.co.nz"),
   title: "OnPoint Talent — Find the Right Opportunity",
   description: "OnPoint Talent connects job seekers with verified employers. Find your next role or hire the right talent today.",
 };

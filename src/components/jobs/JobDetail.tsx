@@ -2,18 +2,8 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Building2, MapPin, DollarSign, Briefcase, CheckCircle, Check, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import type { Job, Application, WorkExperience, Education, SeekerProfile } from "@/types";
-
-// ── localStorage helpers ──────────────────────────────────────────────────
-
-function getApplications(): Application[] {
-  try { return JSON.parse(localStorage.getItem("onpoint_applications") ?? "[]"); }
-  catch { return []; }
-}
-
-function saveApplications(apps: Application[]) {
-  localStorage.setItem("onpoint_applications", JSON.stringify(apps));
-}
+import { createClient } from "@/lib/supabase";
+import type { Job, Application, WorkExperience, Education } from "@/types";
 
 // ── Shared input style ────────────────────────────────────────────────────
 
@@ -26,6 +16,24 @@ function inputClass(error?: string) {
     : `${baseInput} border-slate-200 dark:border-[#1e3356] focus:ring-[#2563eb] dark:focus:ring-[#3b82f6]`;
 }
 
+// ── Supabase helpers ───────────────────────────────────────────────────────
+
+function mapJob(row: Record<string, unknown>): Job {
+  return {
+    id: row.id as string,
+    employerId: row.employer_id as string | null,
+    title: row.title as string,
+    company: row.company as string,
+    location: row.location as string,
+    type: row.type as string,
+    salary: (row.salary as string) ?? "",
+    description: (row.description as string) ?? "",
+    requirements: (row.requirements as string) ?? "",
+    requiredSkills: (row.required_skills as string[]) ?? [],
+    postedAt: row.posted_at as string,
+  };
+}
+
 // ── Step indicator ────────────────────────────────────────────────────────
 
 function StepIndicator({ current }: { current: number }) {
@@ -35,17 +43,14 @@ function StepIndicator({ current }: { current: number }) {
       {steps.map((s, i) => (
         <div key={s} className="flex items-center gap-2">
           {s < current ? (
-            // Completed
             <div className="w-7 h-7 rounded-full flex items-center justify-center bg-[#2563eb] dark:bg-[#3b82f6] text-white">
               <Check className="w-3.5 h-3.5" />
             </div>
           ) : s === current ? (
-            // Active
             <div className="w-7 h-7 rounded-full flex items-center justify-center bg-[#2563eb] dark:bg-[#3b82f6] text-white text-xs font-bold">
               {s}
             </div>
           ) : (
-            // Upcoming
             <div className="w-7 h-7 rounded-full flex items-center justify-center border-2 border-slate-300 dark:border-[#1e3356] text-slate-400 dark:text-slate-500 text-xs font-bold">
               {s}
             </div>
@@ -59,8 +64,6 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-// ── Step labels ───────────────────────────────────────────────────────────
-
 const STEP_LABELS = ["About You", "Experience", "Education & Skills", "Cover Letter"];
 
 // ── JobDetail ─────────────────────────────────────────────────────────────
@@ -69,8 +72,8 @@ export default function JobDetail({ jobId }: { jobId: string }) {
   const { user, mounted } = useAuth();
   const [job, setJob] = useState<Job | null | "not-found">(null);
   const [hasApplied, setHasApplied] = useState(false);
+  const [profileExists, setProfileExists] = useState<boolean | null>(null);
 
-  // Step tracking
   const [step, setStep] = useState(1);
 
   // Step 1
@@ -78,8 +81,8 @@ export default function JobDetail({ jobId }: { jobId: string }) {
   const [location, setLocation] = useState("");
   const [summary, setSummary] = useState("");
 
-  // Saved profile resume pre-fill
-  const [savedResumeData, setSavedResumeData] = useState<string | null>(null);
+  // Saved profile resume
+  const [savedResumeUrl, setSavedResumeUrl] = useState<string | null>(null);
   const [savedResumeName, setSavedResumeName] = useState<string | null>(null);
 
   // Step 2
@@ -98,41 +101,55 @@ export default function JobDetail({ jobId }: { jobId: string }) {
   const [coverLetter, setCoverLetter] = useState("");
   const [resume, setResume] = useState<File | null>(null);
 
-  // Errors
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Submission state
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!mounted) return;
-    try {
-      const jobs: Job[] = JSON.parse(localStorage.getItem("onpoint_jobs") ?? "[]");
-      const found = jobs.find((j) => j.id === jobId);
-      setJob(found ?? "not-found");
-      if (found && user?.role === "seeker") {
-        const apps = getApplications();
-        const alreadyApplied = apps.some((a) => a.jobId === jobId && a.seekerId === user.id);
-        setHasApplied(alreadyApplied);
-        setSubmitted(alreadyApplied);
+    const supabase = createClient();
 
-        // Pre-fill from saved seeker profile
-        const profiles: SeekerProfile[] = JSON.parse(localStorage.getItem("onpoint_profiles") ?? "[]");
-        const profile = profiles.find((p) => p.userId === user.id);
-        if (profile) {
-          if (profile.phone) setPhone(profile.phone);
-          if (profile.location) setLocation(profile.location);
-          if (profile.summary) setSummary(profile.summary);
-          if (profile.skills.length > 0) setSkillsInput(profile.skills.join(", "));
-          if (profile.resumeData && profile.resumeName) {
-            setSavedResumeData(profile.resumeData);
-            setSavedResumeName(profile.resumeName);
+    supabase
+      .from("jobs")
+      .select("*")
+      .eq("id", jobId)
+      .single()
+      .then(({ data }) => {
+        setJob(data ? mapJob(data) : "not-found");
+      });
+
+    if (user?.role === "seeker") {
+      supabase
+        .from("applications")
+        .select("id")
+        .eq("job_id", jobId)
+        .eq("seeker_id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) { setHasApplied(true); setSubmitted(true); }
+        });
+
+      // Pre-fill from seeker profile
+      supabase
+        .from("seeker_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single()
+        .then(({ data }) => {
+          setProfileExists(!!data);
+          if (data) {
+            if (data.phone) setPhone(data.phone);
+            if (data.location) setLocation(data.location);
+            if (data.summary) setSummary(data.summary);
+            if (data.skills?.length > 0) setSkillsInput(data.skills.join(", "));
+            if (data.education?.length > 0) setEducation(data.education as Education[]);
+            if (data.experience?.length > 0) setExperience(data.experience as WorkExperience[]);
+            if (data.resume_url && data.resume_name) {
+              setSavedResumeUrl(data.resume_url);
+              setSavedResumeName(data.resume_name);
+            }
           }
-        }
-      }
-    } catch {
-      setJob("not-found");
+        });
     }
   }, [mounted, user, jobId]);
 
@@ -213,17 +230,13 @@ export default function JobDetail({ jobId }: { jobId: string }) {
 
   // ── Submit ───────────────────────────────────────────────────────────────
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validateStep4()) return;
     if (!user || job === null || job === "not-found") return;
 
-    const existing = getApplications();
-    if (existing.some((a) => a.jobId === jobId && a.seekerId === user.id)) {
-      setSubmitted(true);
-      setHasApplied(true);
-      return;
-    }
+    setSubmitting(true);
+    const supabase = createClient();
 
     const skills = skillsInput
       .split(",")
@@ -234,57 +247,105 @@ export default function JobDetail({ jobId }: { jobId: string }) {
       ? []
       : experience.filter((e) => e.role.trim() && e.company.trim());
 
-    setSubmitting(true);
+    let resumeUrl: string | undefined;
+    let resumeName: string | undefined;
 
-    function saveApplication(resumeData?: string, resumeFileName?: string) {
-      const application: Application = {
-        id: crypto.randomUUID(),
-        jobId: (job as Job).id,
-        employerId: (job as Job).employerId,
-        seekerId: user!.id,
-        seekerName: user!.name,
-        seekerEmail: user!.email,
-        phone: phone.trim(),
-        location: location.trim(),
-        summary: summary.trim(),
-        experience: filteredExperience,
-        education: education.filter((e) => e.degree.trim() && e.institution.trim()),
-        skills,
-        coverLetter: coverLetter.trim(),
-        resumeName: resumeFileName,
-        resumeData,
-        appliedAt: new Date().toISOString(),
-        status: "pending",
-      };
-      try {
-        saveApplications([...existing, application]);
+    // Upload new resume or use saved one
+    if (resume) {
+      const path = `${user.id}/${Date.now()}_${resume.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("resumes")
+        .upload(path, resume, { upsert: true });
+      if (uploadError) {
+        setErrors({ resume: "Failed to upload resume: " + uploadError.message });
         setSubmitting(false);
-        setSubmitted(true);
-        setHasApplied(true);
-      } catch {
-        setErrors({ resume: "Storage limit exceeded. Try a smaller file." });
-        setSubmitting(false);
+        return;
       }
+      resumeUrl = uploadData.path;
+      resumeName = resume.name;
+    } else if (savedResumeUrl && savedResumeName) {
+      resumeUrl = savedResumeUrl;
+      resumeName = savedResumeName;
     }
 
-    if (resume) {
-      const reader = new FileReader();
-      reader.onload = () => saveApplication(reader.result as string, resume.name);
-      reader.onerror = () => {
-        setErrors({ resume: "Failed to read file. Please try again." });
-        setSubmitting(false);
-      };
-      reader.readAsDataURL(resume);
-    } else if (savedResumeData && savedResumeName) {
-      saveApplication(savedResumeData, savedResumeName);
-    } else {
-      saveApplication();
+    const application: Omit<Application, "id"> & { id: string } = {
+      id: crypto.randomUUID(),
+      jobId: (job as Job).id,
+      employerId: (job as Job).employerId,
+      seekerId: user.id,
+      seekerName: user.name,
+      seekerEmail: user.email,
+      phone: phone.trim(),
+      location: location.trim(),
+      summary: summary.trim(),
+      experience: filteredExperience,
+      education: education.filter((e) => e.degree.trim() && e.institution.trim()),
+      skills,
+      coverLetter: coverLetter.trim(),
+      resumeName,
+      resumeUrl,
+      appliedAt: new Date().toISOString(),
+      status: "pending",
+    };
+
+    const { error } = await supabase.from("applications").insert({
+      id: application.id,
+      job_id: application.jobId,
+      employer_id: application.employerId,
+      seeker_id: application.seekerId,
+      seeker_name: application.seekerName,
+      seeker_email: application.seekerEmail,
+      phone: application.phone,
+      location: application.location,
+      summary: application.summary,
+      experience: application.experience,
+      education: application.education,
+      skills: application.skills,
+      cover_letter: application.coverLetter,
+      resume_name: application.resumeName,
+      resume_url: application.resumeUrl,
+      applied_at: application.appliedAt,
+      status: application.status,
+    });
+
+    setSubmitting(false);
+    if (!error) {
+      setSubmitted(true);
+      setHasApplied(true);
     }
   }
 
   // ── Guards ──────────────────────────────────────────────────────────────
 
-  if (!mounted) return null;
+  if (!mounted || job === null) {
+    return (
+      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
+        <div className="bg-white dark:bg-[#0e1a2e] rounded-2xl border border-blue-100 dark:border-[#1e3356] p-8 flex flex-col gap-5">
+          <div className="h-7 w-2/3 bg-slate-200 dark:bg-[#1e3356] rounded animate-pulse" />
+          <div className="flex gap-3">
+            <div className="h-5 w-24 bg-slate-100 dark:bg-[#152237] rounded-full animate-pulse" />
+            <div className="h-5 w-20 bg-slate-100 dark:bg-[#152237] rounded-full animate-pulse" />
+            <div className="h-5 w-28 bg-slate-100 dark:bg-[#152237] rounded-full animate-pulse" />
+          </div>
+          <div className="flex flex-col gap-2 mt-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-4 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" style={{ width: `${85 - i * 5}%` }} />
+            ))}
+          </div>
+          <div className="h-4 w-full bg-slate-100 dark:bg-[#152237] rounded animate-pulse mt-2" />
+          <div className="h-4 w-5/6 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+          <div className="h-4 w-4/5 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+        </div>
+        <div className="bg-white dark:bg-[#0e1a2e] rounded-2xl border border-blue-100 dark:border-[#1e3356] p-8 flex flex-col gap-4">
+          <div className="h-6 w-1/2 bg-slate-200 dark:bg-[#1e3356] rounded animate-pulse" />
+          <div className="h-4 w-3/4 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+          <div className="h-10 bg-slate-100 dark:bg-[#152237] rounded-xl animate-pulse mt-2" />
+          <div className="h-10 bg-slate-100 dark:bg-[#152237] rounded-xl animate-pulse" />
+          <div className="h-12 bg-slate-200 dark:bg-[#1e3356] rounded-full animate-pulse mt-2" />
+        </div>
+      </div>
+    );
+  }
 
   if (job === "not-found") {
     return (
@@ -311,12 +372,11 @@ export default function JobDetail({ jobId }: { jobId: string }) {
     );
   }
 
-  if (job === null) return null; // still loading
+  // job is now guaranteed to be a Job (not null/"not-found")
 
   // ── Right panel content ─────────────────────────────────────────────────
 
   function RightPanel() {
-    // Not logged in
     if (!user) {
       return (
         <div className="text-center py-6">
@@ -344,7 +404,30 @@ export default function JobDetail({ jobId }: { jobId: string }) {
       );
     }
 
-    // Employer viewing
+    if (user.role === "seeker" && profileExists === false) {
+      return (
+        <div className="text-center py-6">
+          <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+            <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9] mb-2">
+            Create your profile first
+          </p>
+          <p className="text-xs text-[#64748b] dark:text-[#94a3b8] mb-5 leading-relaxed">
+            Set up your profile once and it will autofill every application you submit.
+          </p>
+          <a
+            href="/profile"
+            className="block w-full py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm"
+          >
+            Create Profile →
+          </a>
+        </div>
+      );
+    }
+
     if (user.role === "employer") {
       return (
         <div className="text-center py-6">
@@ -359,7 +442,6 @@ export default function JobDetail({ jobId }: { jobId: string }) {
       );
     }
 
-    // Seeker — already applied or just submitted
     if (submitted || hasApplied) {
       return (
         <div className="text-center py-6">
@@ -367,14 +449,18 @@ export default function JobDetail({ jobId }: { jobId: string }) {
           <h3 className="text-base font-semibold text-[#0f172a] dark:text-[#f1f5f9] mb-1">
             Application Submitted!
           </h3>
-          <p className="text-sm text-[#64748b] dark:text-[#94a3b8]">
+          <p className="text-sm text-[#64748b] dark:text-[#94a3b8] mb-5">
             The employer will be in touch if your profile is a good fit.
           </p>
+          <a
+            href="/dashboard"
+            className="block w-full py-2.5 text-sm font-semibold text-center text-[#2563eb] dark:text-[#60a5fa] border border-[#2563eb] dark:border-[#3b82f6] rounded-full hover:bg-[#eff6ff] dark:hover:bg-[#152237] transition-colors"
+          >
+            View My Applications →
+          </a>
         </div>
       );
     }
-
-    // ── Multi-step form ─────────────────────────────────────────────────
 
     const label = "text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]";
     const errMsg = "text-xs text-red-500 dark:text-red-400";

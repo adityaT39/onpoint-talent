@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { createClient } from "@/lib/supabase";
 import { extractSkills } from "@/lib/extractSkills";
 
 type JobType = "Full-time" | "Part-time" | "Contract" | "Remote";
@@ -207,7 +208,7 @@ export default function PostJobForm() {
     setSkillsError("");
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const allTouched: Touched = {
       title: true, company: true, location: true, type: true,
@@ -220,9 +221,10 @@ export default function PostJobForm() {
       setSkillsError("At least one required skill must be added");
     }
     if (Object.keys(errs).length === 0 && skillTags.length > 0) {
-      const job = {
+      const supabase = createClient();
+      const { error } = await supabase.from("jobs").insert({
         id: Date.now().toString(),
-        employerId: user?.id ?? "",
+        employer_id: user?.id ?? null,
         title: fields.title.trim(),
         company: fields.company.trim(),
         location: fields.location.trim(),
@@ -230,12 +232,10 @@ export default function PostJobForm() {
         salary: buildSalaryDisplay(fields.salaryMin, fields.salaryMax),
         description: fields.description.trim(),
         requirements: fields.requirements.trim(),
-        requiredSkills: skillTags,
-        postedAt: new Date().toISOString(),
-      };
-      const existing = JSON.parse(localStorage.getItem("onpoint_jobs") ?? "[]");
-      localStorage.setItem("onpoint_jobs", JSON.stringify([job, ...existing]));
-      router.push("/employer");
+        required_skills: skillTags,
+        posted_at: new Date().toISOString(),
+      });
+      if (!error) router.push("/employer");
     }
   }
 

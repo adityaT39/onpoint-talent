@@ -1,18 +1,16 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type StoredUser = {
+export type AuthUser = {
   id: string;
   name: string;
   email: string;
-  password: string;
   role: "seeker" | "employer";
   company?: string;
 };
-
-export type AuthUser = Omit<StoredUser, "password">;
 
 type SignupData = {
   name: string;
@@ -30,83 +28,118 @@ export type AuthResult = {
 type AuthContextValue = {
   user: AuthUser | null;
   mounted: boolean;
-  login(email: string, password: string): AuthResult;
-  signup(data: SignupData): AuthResult;
-  logout(): void;
+  login(email: string, password: string): Promise<AuthResult>;
+  signup(data: SignupData): Promise<AuthResult>;
+  logout(): Promise<void>;
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function getUsers(): StoredUser[] {
-  try {
-    return JSON.parse(localStorage.getItem("onpoint_users") ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveUsers(users: StoredUser[]) {
-  localStorage.setItem("onpoint_users", JSON.stringify(users));
-}
-
-function toAuthUser(u: StoredUser): AuthUser {
-  const { password: _pw, ...rest } = u;
-  return rest;
-}
-
-// ── Provider ──────────────────────────────────────────────────────────────
+// ── Provider ───────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const sessionId = localStorage.getItem("onpoint_session");
-    if (sessionId) {
-      const users = getUsers();
-      const found = users.find((u) => u.id === sessionId);
-      if (found) setUser(toAuthUser(found));
-    }
-    setMounted(true);
-  }, []);
-
-  function login(email: string, password: string): AuthResult {
-    const users = getUsers();
-    const found = users.find(
-      (u) => u.email === email.toLowerCase().trim() && u.password === password
-    );
-    if (!found) return { error: "Invalid email or password", role: null };
-    localStorage.setItem("onpoint_session", found.id);
-    setUser(toAuthUser(found));
-    return { error: null, role: found.role };
-  }
-
-  function signup(data: SignupData): AuthResult {
-    const users = getUsers();
-    const email = data.email.toLowerCase().trim();
-    if (users.some((u) => u.email === email)) {
-      return { error: "An account with this email already exists", role: null };
-    }
-    const newUser: StoredUser = {
-      id: crypto.randomUUID(),
+  async function loadProfile(userId: string, email: string): Promise<AuthUser | null> {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("profiles")
+      .select("name, role, company")
+      .eq("id", userId)
+      .single();
+    if (!data) return null;
+    return {
+      id: userId,
       name: data.name,
       email,
-      password: data.password,
-      role: data.role,
-      ...(data.company ? { company: data.company } : {}),
+      role: data.role as "seeker" | "employer",
+      company: data.company ?? undefined,
     };
-    saveUsers([...users, newUser]);
-    localStorage.setItem("onpoint_session", newUser.id);
-    setUser(toAuthUser(newUser));
-    return { error: null, role: newUser.role };
   }
 
-  function logout() {
-    localStorage.removeItem("onpoint_session");
+  useEffect(() => {
+    let subscription: { unsubscribe: () => void } | null = null;
+
+    async function init() {
+      try {
+        const supabase = createClient();
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) console.error("[AuthContext] getSession error:", sessionError);
+
+        if (session?.user) {
+          const profile = await loadProfile(session.user.id, session.user.email!);
+          setUser(profile);
+        }
+
+        const { data } = supabase.auth.onAuthStateChange(
+          async (event, sess) => {
+            if (sess?.user) {
+              const profile = await loadProfile(sess.user.id, sess.user.email!);
+              setUser(profile);
+            } else {
+              setUser(null);
+            }
+          }
+        );
+        subscription = data.subscription;
+      } catch (err) {
+        console.error("[AuthContext] init failed:", err);
+      } finally {
+        setMounted(true);
+      }
+    }
+
+    init();
+
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  async function login(email: string, password: string): Promise<AuthResult> {
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) return { error: error.message, role: null };
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    return { error: null, role: (profile?.role as "seeker" | "employer") ?? null };
+  }
+
+  async function signup(data: SignupData): Promise<AuthResult> {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          name: data.name,
+          role: data.role,
+          company: data.company,
+        },
+      },
+    });
+    if (error) return { error: error.message, role: null };
+
+    // Profile row is created automatically by the on_auth_user_created trigger
+
+    // Return role: null → caller redirects to /verify-email
+    return { error: null, role: null };
+  }
+
+  async function logout(): Promise<void> {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     setUser(null);
   }
 

@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import Navbar from "@/components/home/Navbar";
+
+export const metadata: Metadata = {
+  title: "OnPoint Talent — Find the Right Opportunity",
+  description: "Browse verified job listings and connect with top employers in New Zealand. Your next career move starts here.",
+};
 import HeroSection from "@/components/home/HeroSection";
 import WhySection from "@/components/home/WhySection";
 import HowItWorks from "@/components/home/HowItWorks";

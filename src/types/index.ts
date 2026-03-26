@@ -1,6 +1,6 @@
 export type Job = {
   id: string;
-  employerId: string;
+  employerId: string | null;
   title: string;
   company: string;
   location: string;
@@ -32,15 +32,23 @@ export type SeekerProfile = {
   summary: string;
   skills: string[];
   experience: WorkExperience[];
+  education: Education[];
   resumeName: string;
-  resumeData: string;   // base64 data URI
+  resumeUrl: string;     // Supabase Storage path (replaces base64 resumeData)
   updatedAt: string;
+};
+
+export type SavedJob = {
+  id: string;
+  seekerId: string;
+  jobId: string;
+  savedAt: string;
 };
 
 export type Application = {
   id: string;
   jobId: string;
-  employerId: string;
+  employerId: string | null;
   seekerId: string;
   seekerName: string;
   seekerEmail: string;
@@ -54,7 +62,7 @@ export type Application = {
   // existing fields
   coverLetter: string;
   resumeName?: string;
-  resumeData?: string;       // "data:application/pdf;base64,..."
+  resumeUrl?: string;        // Supabase Storage path (replaces base64 resumeData)
   appliedAt: string;         // ISO
   status: "pending" | "interview" | "rejected";
 };

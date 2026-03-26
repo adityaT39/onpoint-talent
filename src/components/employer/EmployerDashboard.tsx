@@ -2,41 +2,26 @@
 import { useState, useEffect } from "react";
 import { Briefcase, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import type { Job, Application } from "@/types";
+import { createClient } from "@/lib/supabase";
+import type { Job } from "@/types";
 import { extractSkills } from "@/lib/extractSkills";
 
-// ── localStorage helpers ──────────────────────────────────────────────────
+// ── Supabase helpers ───────────────────────────────────────────────────────
 
-function getEmployerJobs(employerId: string): Job[] {
-  try {
-    const all: Job[] = JSON.parse(localStorage.getItem("onpoint_jobs") ?? "[]");
-    return all.filter((j) => j.employerId === employerId);
-  } catch { return []; }
-}
-
-function getApplicationCount(jobId: string): number {
-  try {
-    const all: Application[] = JSON.parse(localStorage.getItem("onpoint_applications") ?? "[]");
-    return all.filter((a) => a.jobId === jobId).length;
-  } catch { return 0; }
-}
-
-function saveUpdatedJob(updatedJob: Job): Job[] {
-  try {
-    const all: Job[] = JSON.parse(localStorage.getItem("onpoint_jobs") ?? "[]");
-    const updated = all.map((j) => (j.id === updatedJob.id ? updatedJob : j));
-    localStorage.setItem("onpoint_jobs", JSON.stringify(updated));
-    return updated;
-  } catch { return []; }
-}
-
-function removeJob(jobId: string) {
-  try {
-    const allJobs: Job[] = JSON.parse(localStorage.getItem("onpoint_jobs") ?? "[]");
-    localStorage.setItem("onpoint_jobs", JSON.stringify(allJobs.filter((j) => j.id !== jobId)));
-    const allApps: Application[] = JSON.parse(localStorage.getItem("onpoint_applications") ?? "[]");
-    localStorage.setItem("onpoint_applications", JSON.stringify(allApps.filter((a) => a.jobId !== jobId)));
-  } catch {}
+function mapJob(row: Record<string, unknown>): Job {
+  return {
+    id: row.id as string,
+    employerId: row.employer_id as string | null,
+    title: row.title as string,
+    company: row.company as string,
+    location: row.location as string,
+    type: row.type as string,
+    salary: (row.salary as string) ?? "",
+    description: (row.description as string) ?? "",
+    requirements: (row.requirements as string) ?? "",
+    requiredSkills: (row.required_skills as string[]) ?? [],
+    postedAt: row.posted_at as string,
+  };
 }
 
 // ── Shared input style ────────────────────────────────────────────────────
@@ -99,7 +84,7 @@ function EditJobForm({
     setSkillTags(detected.length > 0 ? detected : skillTags);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errs: Partial<Record<keyof EditFields, string>> = {};
     if (!fields.title.trim()) errs.title = "Required";
@@ -108,7 +93,31 @@ function EditJobForm({
     if (!fields.type) errs.type = "Required";
     if (!fields.description.trim()) errs.description = "Required";
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    onSave({ ...job, ...fields, title: fields.title.trim(), company: fields.company.trim(), location: fields.location.trim(), description: fields.description.trim(), requirements: fields.requirements.trim(), requiredSkills: skillTags });
+
+    const updated: Job = {
+      ...job,
+      ...fields,
+      title: fields.title.trim(),
+      company: fields.company.trim(),
+      location: fields.location.trim(),
+      description: fields.description.trim(),
+      requirements: fields.requirements.trim(),
+      requiredSkills: skillTags,
+    };
+
+    const supabase = createClient();
+    await supabase.from("jobs").update({
+      title: updated.title,
+      company: updated.company,
+      location: updated.location,
+      type: updated.type,
+      salary: updated.salary,
+      description: updated.description,
+      requirements: updated.requirements,
+      required_skills: updated.requiredSkills,
+    }).eq("id", updated.id);
+
+    onSave(updated);
   }
 
   return (
@@ -282,17 +291,67 @@ export default function EmployerDashboard() {
   const [appCounts, setAppCounts] = useState<Record<string, number>>({});
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!mounted || !user) return;
-    const employerJobs = getEmployerJobs(user.id);
-    setJobs(employerJobs);
-    const counts: Record<string, number> = {};
-    employerJobs.forEach((j) => { counts[j.id] = getApplicationCount(j.id); });
-    setAppCounts(counts);
+    const supabase = createClient();
+
+    supabase
+      .from("jobs")
+      .select("*")
+      .eq("employer_id", user.id)
+      .order("posted_at", { ascending: false })
+      .then(({ data }) => {
+        const employerJobs = (data ?? []).map(mapJob);
+        setJobs(employerJobs);
+        setLoading(false);
+
+        // Count applications per job
+        if (employerJobs.length > 0) {
+          const jobIds = employerJobs.map((j) => j.id);
+          supabase
+            .from("applications")
+            .select("job_id")
+            .in("job_id", jobIds)
+            .then(({ data: appData }) => {
+              const counts: Record<string, number> = {};
+              jobIds.forEach((id) => { counts[id] = 0; });
+              (appData ?? []).forEach((a: { job_id: string }) => {
+                counts[a.job_id] = (counts[a.job_id] ?? 0) + 1;
+              });
+              setAppCounts(counts);
+            });
+        }
+      });
   }, [mounted, user]);
 
-  if (!mounted) return null;
+  if (!mounted || loading) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-start justify-between mb-8 gap-4">
+          <div>
+            <div className="h-9 w-60 bg-slate-200 dark:bg-[#1e3356] rounded-lg mb-2 animate-pulse" />
+            <div className="h-4 w-44 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+          </div>
+          <div className="h-10 w-32 bg-slate-200 dark:bg-[#1e3356] rounded-full animate-pulse" />
+        </div>
+        <div className="flex flex-col gap-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-[#0e1a2e] rounded-2xl border border-blue-100 dark:border-[#1e3356] px-6 py-5 flex items-center gap-3">
+              <div className="flex-1">
+                <div className="h-5 w-2/5 bg-slate-200 dark:bg-[#1e3356] rounded mb-2 animate-pulse" />
+                <div className="h-4 w-1/3 bg-slate-100 dark:bg-[#152237] rounded animate-pulse" />
+              </div>
+              <div className="h-8 w-28 bg-slate-100 dark:bg-[#152237] rounded-full animate-pulse" />
+              <div className="h-7 w-7 bg-slate-100 dark:bg-[#152237] rounded-lg animate-pulse" />
+              <div className="h-7 w-7 bg-slate-100 dark:bg-[#152237] rounded-lg animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Access guard ───────────────────────────────────────────────────────
   if (!user || user.role !== "employer") {
@@ -324,13 +383,13 @@ export default function EmployerDashboard() {
   // ── Handlers ───────────────────────────────────────────────────────────
 
   function handleSaveEdit(updated: Job) {
-    saveUpdatedJob(updated);
     setJobs((prev) => prev.map((j) => (j.id === updated.id ? updated : j)));
     setEditingJobId(null);
   }
 
-  function handleDelete(jobId: string) {
-    removeJob(jobId);
+  async function handleDelete(jobId: string) {
+    const supabase = createClient();
+    await supabase.from("jobs").delete().eq("id", jobId);
     setJobs((prev) => prev.filter((j) => j.id !== jobId));
     setAppCounts((prev) => { const next = { ...prev }; delete next[jobId]; return next; });
     setDeletingJobId(null);

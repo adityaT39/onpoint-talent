@@ -3,18 +3,18 @@ type LinkEntry = { label: string; href: string };
 const links: Record<string, LinkEntry[]> = {
   Team: [
     { label: "About Us", href: "/about" },
-    { label: "Careers", href: "#" },
-    { label: "Contact", href: "#" },
+    { label: "For Employers", href: "/for-employers" },
+    { label: "Pricing", href: "/pricing" },
   ],
   Services: [
     { label: "Post a Job", href: "/post-job" },
-    { label: "Browse Jobs", href: "#" },
+    { label: "Browse Jobs", href: "/jobs" },
     { label: "For Employers", href: "/for-employers" },
   ],
   Legal: [
-    { label: "Privacy Policy", href: "#" },
-    { label: "Terms of Use", href: "#" },
-    { label: "Cookie Policy", href: "#" },
+    { label: "Privacy Policy", href: "/privacy" },
+    { label: "Terms of Use", href: "/terms" },
+    { label: "Cookie Policy", href: "/privacy#cookies" },
   ],
 };
 

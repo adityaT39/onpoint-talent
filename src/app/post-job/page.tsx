@@ -3,7 +3,10 @@ import Footer from "@/components/home/Footer";
 import AuthPageBackground from "@/components/auth/AuthPageBackground";
 import PostJobForm from "@/components/jobs/PostJobForm";
 
-export const metadata = { title: "Post a Job — OnPoint Talent" };
+export const metadata = {
+  title: "Post a Job — OnPoint Talent",
+  description: "Post a new job listing on OnPoint Talent. Reach qualified candidates across New Zealand.",
+};
 
 // Employer job posting page — form saved to localStorage
 export default function PostJobPage() {

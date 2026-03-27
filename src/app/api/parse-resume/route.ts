@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     console.log("[parse-resume] step 6: calling Claude");
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: `Extract structured profile data from this resume:\n\n${text}` }],

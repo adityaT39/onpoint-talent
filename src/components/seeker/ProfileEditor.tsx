@@ -38,6 +38,8 @@ export default function ProfileEditor() {
   const [skillInput, setSkillInput] = useState("");
   const [dragging, setDragging] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auth guard + load profile
@@ -194,6 +196,8 @@ export default function ProfileEditor() {
 
   async function saveProfile() {
     if (!user) return;
+    setSaving(true);
+    setSaveError(null);
     const supabase = createClient();
     let resumeUrl = profileDraft.resumeUrl;
 
@@ -203,13 +207,14 @@ export default function ProfileEditor() {
         .from("resumes")
         .upload(path, resumeFile, { upsert: true });
       if (uploadError) {
-        setScanError("Failed to upload resume: " + uploadError.message);
+        setSaveError("Failed to upload resume: " + uploadError.message);
+        setSaving(false);
         return;
       }
       resumeUrl = uploadData.path;
     }
 
-    await supabase.from("seeker_profiles").upsert({
+    const { error } = await supabase.from("seeker_profiles").upsert({
       user_id: user.id,
       phone: profileDraft.phone,
       location: profileDraft.location,
@@ -222,12 +227,19 @@ export default function ProfileEditor() {
       updated_at: new Date().toISOString(),
     });
 
+    setSaving(false);
+
+    if (error) {
+      setSaveError("Failed to save profile. Please try again.");
+      return;
+    }
+
     if (resumeFile && resumeUrl !== profileDraft.resumeUrl) {
       setProfileDraft((d) => ({ ...d, resumeUrl }));
     }
 
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => setSaved(false), 3000);
   }
 
   async function downloadResume() {
@@ -347,13 +359,23 @@ export default function ProfileEditor() {
                   />
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={saveProfile}
-                className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-[#1e40af] bg-white rounded-full hover:bg-blue-50 transition-colors shadow-sm"
-              >
-                {saved ? "Saved!" : "Save Profile"}
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                {saveError && (
+                  <p className="text-xs text-red-400">{saveError}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={saveProfile}
+                  disabled={saving}
+                  className={`w-full sm:w-auto px-6 py-2.5 text-sm font-semibold rounded-full transition-colors shadow-sm disabled:opacity-60 ${
+                    saved
+                      ? "text-emerald-700 bg-emerald-50"
+                      : "text-[#1e40af] bg-white hover:bg-blue-50"
+                  }`}
+                >
+                  {saving ? "Saving…" : saved ? "✓ Saved!" : "Save Profile"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

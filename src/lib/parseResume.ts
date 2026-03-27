@@ -6,18 +6,35 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString();
 
-/** Extract raw text from a PDF File */
+/** Extract raw text from a PDF File, preserving line breaks for better AI parsing */
 export async function extractPdfText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const pages = await Promise.all(
-    Array.from({ length: pdf.numPages }, (_, i) =>
-      pdf.getPage(i + 1).then((p) => p.getTextContent())
-    )
-  );
-  return pages
-    .flatMap((page) => page.items.map((item) => ("str" in item ? item.str : "")))
-    .join(" ");
+
+  const pageTexts: string[] = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+
+    const lines: { y: number; text: string }[] = [];
+    for (const item of content.items) {
+      if (!("str" in item) || !item.str.trim()) continue;
+      const y = Math.round((item as { transform: number[] }).transform[5]);
+      const existing = lines.find((l) => Math.abs(l.y - y) < 3);
+      if (existing) {
+        existing.text += " " + item.str;
+      } else {
+        lines.push({ y, text: item.str });
+      }
+    }
+
+    // Sort top-to-bottom (higher y = higher on page in PDF coords)
+    lines.sort((a, b) => b.y - a.y);
+    pageTexts.push(lines.map((l) => l.text.trim()).join("\n"));
+  }
+
+  return pageTexts.join("\n\n");
 }
 
 /** Best-effort extraction of structured fields from raw resume text */

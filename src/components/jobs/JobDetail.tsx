@@ -30,6 +30,7 @@ function mapJob(row: Record<string, unknown>): Job {
     description: (row.description as string) ?? "",
     requirements: (row.requirements as string) ?? "",
     requiredSkills: (row.required_skills as string[]) ?? [],
+    applyUrl: (row.apply_url as string) ?? undefined,
     postedAt: row.posted_at as string,
   };
 }
@@ -377,6 +378,62 @@ export default function JobDetail({ jobId }: { jobId: string }) {
   // ── Right panel content ─────────────────────────────────────────────────
 
   function RightPanel() {
+    const j = job as Job;
+    // Employer view — show listing status + external link if set
+    if (user?.role === "employer") {
+      return (
+        <div className="text-center py-6">
+          <Briefcase className="mx-auto mb-3 w-8 h-8 text-[#2563eb] dark:text-[#60a5fa] opacity-60" />
+          <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9] mb-1">
+            This listing is live
+          </p>
+          <p className="text-xs text-[#64748b] dark:text-[#94a3b8]">
+            Job seekers can view and apply to this posting.
+          </p>
+          {j.applyUrl && (
+            <a
+              href={j.applyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-1.5 text-xs text-[#2563eb] dark:text-[#60a5fa] hover:underline"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              View external apply link
+            </a>
+          )}
+        </div>
+      );
+    }
+
+    // External apply link — anyone (logged in or not) goes directly to the external URL
+    if (j.applyUrl) {
+      return (
+        <div className="text-center py-6">
+          <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-blue-50 dark:bg-[#152237] flex items-center justify-center">
+            <svg className="w-6 h-6 text-[#2563eb] dark:text-[#60a5fa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9] mb-1">
+            Apply via external portal
+          </p>
+          <p className="text-xs text-[#64748b] dark:text-[#94a3b8] mb-5 leading-relaxed">
+            This employer manages applications through their own platform.
+          </p>
+          <a
+            href={j.applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full py-3 text-sm font-semibold text-center text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm"
+          >
+            Apply Now →
+          </a>
+        </div>
+      );
+    }
+
     if (!user) {
       return (
         <div className="text-center py-6">
@@ -424,20 +481,6 @@ export default function JobDetail({ jobId }: { jobId: string }) {
           >
             Create Profile →
           </a>
-        </div>
-      );
-    }
-
-    if (user.role === "employer") {
-      return (
-        <div className="text-center py-6">
-          <Briefcase className="mx-auto mb-3 w-8 h-8 text-[#2563eb] dark:text-[#60a5fa] opacity-60" />
-          <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9] mb-1">
-            This listing is live
-          </p>
-          <p className="text-xs text-[#64748b] dark:text-[#94a3b8]">
-            Job seekers can view and apply to this posting.
-          </p>
         </div>
       );
     }

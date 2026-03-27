@@ -16,6 +16,7 @@ type Fields = {
   salaryMax: string;
   description: string;
   requirements: string;
+  applyUrl: string;
 };
 
 type Errors = Partial<Record<keyof Fields, string>>;
@@ -69,6 +70,11 @@ function validateRequirements(v: string) {
   return "";
 }
 
+function validateApplyUrl(v: string) {
+  if (!v.trim()) return "";
+  try { new URL(v.trim()); return ""; } catch { return "Enter a valid URL including https://"; }
+}
+
 function validate(fields: Fields): Errors {
   const errs: Errors = {};
   const title = validateTitle(fields.title);
@@ -86,6 +92,8 @@ function validate(fields: Fields): Errors {
   if (description) errs.description = description;
   const requirements = validateRequirements(fields.requirements);
   if (requirements) errs.requirements = requirements;
+  const applyUrl = validateApplyUrl(fields.applyUrl);
+  if (applyUrl) errs.applyUrl = applyUrl;
   return errs;
 }
 
@@ -121,7 +129,7 @@ function inputClass(error?: string) {
 
 const emptyFields: Fields = {
   title: "", company: "", location: "", type: "",
-  salaryMin: "", salaryMax: "", description: "", requirements: "",
+  salaryMin: "", salaryMax: "", description: "", requirements: "", applyUrl: "",
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -212,7 +220,7 @@ export default function PostJobForm() {
     e.preventDefault();
     const allTouched: Touched = {
       title: true, company: true, location: true, type: true,
-      salaryMin: true, salaryMax: true, description: true, requirements: true,
+      salaryMin: true, salaryMax: true, description: true, requirements: true, applyUrl: true,
     };
     setTouched(allTouched);
     const errs = validate(fields);
@@ -233,6 +241,7 @@ export default function PostJobForm() {
         description: fields.description.trim(),
         requirements: fields.requirements.trim(),
         required_skills: skillTags,
+        apply_url: fields.applyUrl.trim() || null,
         posted_at: new Date().toISOString(),
       });
       if (!error) router.push("/employer");
@@ -406,6 +415,28 @@ export default function PostJobForm() {
           {touched.requirements && errors.requirements && (
             <p className="text-xs text-red-500 dark:text-red-400">{errors.requirements}</p>
           )}
+        </div>
+
+        {/* External Apply Link */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">
+            External Apply Link{" "}
+            <span className="text-[#94a3b8] font-normal">(optional)</span>
+          </label>
+          <input
+            type="url"
+            value={fields.applyUrl}
+            placeholder="https://linkedin.com/jobs/… or your company careers page"
+            onChange={(e) => handleChange("applyUrl", e.target.value)}
+            onBlur={() => handleBlur("applyUrl")}
+            className={inputClass(touched.applyUrl ? errors.applyUrl : undefined)}
+          />
+          {touched.applyUrl && errors.applyUrl && (
+            <p className="text-xs text-red-500 dark:text-red-400">{errors.applyUrl}</p>
+          )}
+          <p className="text-xs text-[#94a3b8]">
+            If set, seekers will be directed to this URL (LinkedIn, Indeed, your careers page, etc.) instead of the on-site application form.
+          </p>
         </div>
 
         {/* Required Skills */}

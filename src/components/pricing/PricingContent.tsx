@@ -7,6 +7,7 @@ import {
   Check,
   Minus,
 } from "lucide-react";
+import CheckoutButton from "./CheckoutButton";
 
 const freeFeatures = [
   {
@@ -183,12 +184,11 @@ export default function PricingContent() {
                   </li>
                 ))}
               </ul>
-              <a
-                href="/signup?role=employer"
-                className="block text-center px-6 py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors"
-              >
-                Unlock a Listing
-              </a>
+              <CheckoutButton
+                type="per_listing"
+                label="Unlock a Listing"
+                className="block text-center px-6 py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors disabled:opacity-60"
+              />
             </div>
 
             {/* Pro */}
@@ -218,12 +218,11 @@ export default function PricingContent() {
                   </li>
                 ))}
               </ul>
-              <a
-                href="/signup?role=employer"
-                className="block text-center px-6 py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors"
-              >
-                Start Pro
-              </a>
+              <CheckoutButton
+                type="pro"
+                label="Start Pro"
+                className="block text-center px-6 py-3 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors disabled:opacity-60"
+              />
             </div>
           </div>
         </div>

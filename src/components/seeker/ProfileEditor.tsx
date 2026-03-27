@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { createClient } from "@/lib/supabase";
+import AvatarUpload from "@/components/shared/AvatarUpload";
 // Dynamically imported inside handlers — pdfjs-dist uses browser-only APIs (DOMMatrix)
 // and must never be evaluated server-side
 import type { WorkExperience, Education } from "@/types";
@@ -17,7 +18,7 @@ function inputClass(error?: string) {
 }
 
 export default function ProfileEditor() {
-  const { user, mounted } = useAuth();
+  const { user, mounted, updateAvatar } = useAuth();
   const router = useRouter();
 
   const [profileDraft, setProfileDraft] = useState({
@@ -247,13 +248,6 @@ export default function ProfileEditor() {
   const completeness = completenessFields.filter(Boolean).length;
   const pct = Math.round((completeness / 7) * 100);
 
-  // Avatar initials
-  const initials = user?.name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("") ?? "";
-
   if (!mounted) {
     return (
       <div className="max-w-4xl mx-auto w-full">
@@ -316,8 +310,15 @@ export default function ProfileEditor() {
 
             {/* Avatar + identity */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="flex-shrink-0 w-[72px] h-[72px] rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-white text-2xl font-bold select-none">
-                {initials}
+              <div className="flex-shrink-0">
+                {user && (
+                  <AvatarUpload
+                    userId={user.id}
+                    name={user.name}
+                    currentUrl={user.avatarUrl}
+                    onUpdate={updateAvatar}
+                  />
+                )}
               </div>
               <div className="min-w-0">
                 <p className="text-xl font-bold text-white truncate">{user?.name}</p>

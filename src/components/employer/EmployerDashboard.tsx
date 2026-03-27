@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Briefcase, Pencil, Trash2 } from "lucide-react";
+import { Briefcase, Pencil, Trash2, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createClient } from "@/lib/supabase";
+import AvatarUpload from "@/components/shared/AvatarUpload";
 import type { Job } from "@/types";
 import { extractSkills } from "@/lib/extractSkills";
 
@@ -286,16 +287,28 @@ function EditJobForm({
 // ── EmployerDashboard ─────────────────────────────────────────────────────
 
 export default function EmployerDashboard() {
-  const { user, mounted } = useAuth();
+  const { user, mounted, updateAvatar } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [appCounts, setAppCounts] = useState<Record<string, number>>({});
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPro, setIsPro] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   useEffect(() => {
     if (!mounted || !user) return;
     const supabase = createClient();
+
+    // Check Pro subscription
+    supabase
+      .from("employer_subscriptions")
+      .select("status")
+      .eq("employer_id", user.id)
+      .single()
+      .then(({ data }) => {
+        setIsPro(data?.status === "active" || data?.status === "trialing");
+      });
 
     supabase
       .from("jobs")
@@ -325,6 +338,14 @@ export default function EmployerDashboard() {
         }
       });
   }, [mounted, user]);
+
+  async function handleManageBilling() {
+    setBillingLoading(true);
+    const res = await fetch("/api/stripe/portal", { method: "POST" });
+    const { url } = await res.json();
+    if (url) window.location.href = url;
+    else setBillingLoading(false);
+  }
 
   if (!mounted || loading) {
     return (
@@ -402,22 +423,75 @@ export default function EmployerDashboard() {
     <div className="max-w-4xl mx-auto" style={{ animation: "fade-slide-up 0.5s ease-out forwards" }}>
       {/* Header */}
       <div className="flex items-start justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[#0f172a] dark:text-[#f1f5f9] tracking-tight">
-            Employer Dashboard
-          </h1>
-          <p className="text-sm text-[#64748b] dark:text-[#94a3b8] mt-1">
-            {user.company ?? user.name} · {jobs.length}{" "}
-            {jobs.length === 1 ? "listing" : "listings"}
-          </p>
+        <div className="flex items-center gap-4">
+          <AvatarUpload
+            userId={user.id}
+            name={user.name}
+            currentUrl={user.avatarUrl}
+            onUpdate={updateAvatar}
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold text-[#0f172a] dark:text-[#f1f5f9] tracking-tight">
+                Employer Dashboard
+              </h1>
+              {isPro && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-[#2563eb] to-[#7c3aed] text-white shadow-sm">
+                  <Sparkles className="w-3 h-3" /> Pro
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-[#64748b] dark:text-[#94a3b8] mt-1">
+              {user.company ?? user.name} · {jobs.length}{" "}
+              {jobs.length === 1 ? "listing" : "listings"}
+            </p>
+          </div>
         </div>
-        <a
-          href="/post-job"
-          className="shrink-0 px-5 py-2.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm"
-        >
-          + Post a Job
-        </a>
+        <div className="flex items-center gap-2 shrink-0">
+          {isPro ? (
+            <button
+              onClick={handleManageBilling}
+              disabled={billingLoading}
+              className="px-4 py-2.5 text-sm font-semibold text-[#2563eb] dark:text-[#60a5fa] border border-[#2563eb] dark:border-[#3b82f6] rounded-full hover:bg-[#eff6ff] dark:hover:bg-[#152237] transition-colors disabled:opacity-60"
+            >
+              {billingLoading ? "Loading…" : "Manage Billing"}
+            </button>
+          ) : (
+            <a
+              href="/pricing"
+              className="px-4 py-2.5 text-sm font-semibold text-[#2563eb] dark:text-[#60a5fa] border border-[#2563eb] dark:border-[#3b82f6] rounded-full hover:bg-[#eff6ff] dark:hover:bg-[#152237] transition-colors"
+            >
+              Upgrade to Pro
+            </a>
+          )}
+          <a
+            href="/post-job"
+            className="px-5 py-2.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm"
+          >
+            + Post a Job
+          </a>
+        </div>
       </div>
+
+      {/* Pro upgrade banner */}
+      {!isPro && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-blue-100 dark:border-[#1e3356] bg-[#eff6ff] dark:bg-[#0e1a2e] px-6 py-4">
+          <div>
+            <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9]">
+              Unlock full applicant profiles
+            </p>
+            <p className="text-xs text-[#64748b] dark:text-[#94a3b8] mt-0.5">
+              Upgrade to Pro for $79/mo — see resumes, contact info &amp; more across all listings.
+            </p>
+          </div>
+          <a
+            href="/pricing"
+            className="shrink-0 px-4 py-2 text-xs font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors shadow-sm"
+          >
+            See Plans
+          </a>
+        </div>
+      )}
 
       {/* Empty state */}
       {jobs.length === 0 ? (

@@ -10,6 +10,7 @@ export type AuthUser = {
   email: string;
   role: "seeker" | "employer";
   company?: string;
+  avatarUrl?: string;
 };
 
 type SignupData = {
@@ -31,6 +32,7 @@ type AuthContextValue = {
   login(email: string, password: string): Promise<AuthResult>;
   signup(data: SignupData): Promise<AuthResult>;
   logout(): Promise<void>;
+  updateAvatar(url: string): void;
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -47,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("profiles")
-      .select("name, role, company")
+      .select("name, role, company, avatar_url")
       .eq("id", userId)
       .single();
     if (!data) return null;
@@ -57,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       role: data.role as "seeker" | "employer",
       company: data.company ?? undefined,
+      avatarUrl: data.avatar_url ?? undefined,
     };
   }
 
@@ -137,6 +140,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null, role: null };
   }
 
+  function updateAvatar(url: string): void {
+    setUser((u) => (u ? { ...u, avatarUrl: url } : null));
+  }
+
   async function logout(): Promise<void> {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -144,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, mounted, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, mounted, login, signup, logout, updateAvatar }}>
       {children}
     </AuthContext.Provider>
   );

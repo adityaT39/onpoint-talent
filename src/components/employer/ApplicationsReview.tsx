@@ -408,6 +408,9 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
   const [applications, setApplications] = useState<Application[]>([]);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [sentInviteIds, setSentInviteIds] = useState<Set<string>>(new Set());
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<"per_listing" | "pro" | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   useEffect(() => {
     if (!mounted || !user) return;
@@ -430,7 +433,53 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
       .then(({ data }) => {
         setApplications((data ?? []).map(mapApplication));
       });
+
+    // Check if this job is unlocked (Pro subscription or per-listing unlock)
+    async function checkAccess() {
+      if (!user) return;
+      const supabase = createClient();
+
+      const { data: sub } = await supabase
+        .from("employer_subscriptions")
+        .select("status")
+        .eq("employer_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (sub) { setIsUnlocked(true); return; }
+
+      const { data: unlock } = await supabase
+        .from("job_unlocks")
+        .select("job_id")
+        .eq("employer_id", user.id)
+        .eq("job_id", jobId)
+        .maybeSingle();
+
+      if (unlock) setIsUnlocked(true);
+    }
+    checkAccess();
+
+    // Show success banner if redirected from Stripe
+    if (typeof window !== "undefined" && window.location.search.includes("payment=success")) {
+      setPaymentSuccess(true);
+    }
   }, [mounted, user, jobId]);
+
+  async function handleCheckout(type: "per_listing" | "pro") {
+    setCheckoutLoading(type);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, jobId: type === "per_listing" ? jobId : undefined }),
+      });
+      const { url, error } = await res.json();
+      if (error || !url) { setCheckoutLoading(null); return; }
+      window.location.href = url;
+    } catch {
+      setCheckoutLoading(null);
+    }
+  }
 
   if (!mounted) {
     return (
@@ -645,21 +694,43 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
         </div>
       </div>
 
-      {/* Locked-tier banner */}
-      {applications.length > 0 && (
-        <div className="mb-6 flex items-center justify-between gap-4 px-5 py-3.5 rounded-xl bg-[#eff6ff] dark:bg-[#0e1a2e] border border-blue-100 dark:border-[#1e3356]">
-          <div className="flex items-center gap-2.5 min-w-0">
+      {/* Payment success banner */}
+      {paymentSuccess && (
+        <div className="mb-6 flex items-center gap-3 px-5 py-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+          <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+            Payment successful — applicant details are now unlocked.
+          </p>
+        </div>
+      )}
+
+      {/* Locked-tier banner — only shown when not unlocked */}
+      {!isUnlocked && applications.length > 0 && (
+        <div className="mb-6 rounded-xl bg-[#eff6ff] dark:bg-[#0e1a2e] border border-blue-100 dark:border-[#1e3356] px-5 py-4">
+          <div className="flex items-center gap-2.5 mb-3">
             <Lock className="w-4 h-4 text-[#2563eb] dark:text-[#60a5fa] shrink-0" />
-            <p className="text-sm text-[#0f172a] dark:text-[#f1f5f9] truncate">
-              <span className="font-semibold">Starter plan</span> — contact details, profile &amp; documents are locked.
+            <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f1f5f9]">
+              Starter plan — contact details, profile &amp; documents are locked.
             </p>
           </div>
-          <a
-            href="/pricing"
-            className="shrink-0 text-xs font-semibold px-4 py-1.5 rounded-full bg-[#2563eb] dark:bg-[#3b82f6] text-white hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors"
-          >
-            Unlock
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => handleCheckout("per_listing")}
+              disabled={!!checkoutLoading}
+              className="text-xs font-semibold px-4 py-1.5 rounded-full bg-[#2563eb] dark:bg-[#3b82f6] text-white hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] disabled:opacity-60 transition-colors"
+            >
+              {checkoutLoading === "per_listing" ? "Redirecting…" : "Unlock this listing — $29"}
+            </button>
+            <button
+              onClick={() => handleCheckout("pro")}
+              disabled={!!checkoutLoading}
+              className="text-xs font-semibold px-4 py-1.5 rounded-full bg-white dark:bg-[#152237] text-[#2563eb] dark:text-[#60a5fa] border border-[#2563eb] dark:border-[#3b82f6] hover:bg-[#eff6ff] dark:hover:bg-[#0e1a2e] disabled:opacity-60 transition-colors"
+            >
+              {checkoutLoading === "pro" ? "Redirecting…" : "Go Pro — $79/mo (all listings)"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -700,7 +771,7 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
           count={pending.length}
           color="amber"
           apps={pending}
-          isUnlocked={false}
+          isUnlocked={isUnlocked}
           requiredSkills={requiredSkills}
           onStatusChange={handleStatusChange}
           onDownload={handleDownload}
@@ -712,7 +783,7 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
           count={interview.length}
           color="blue"
           apps={interview}
-          isUnlocked={false}
+          isUnlocked={isUnlocked}
           requiredSkills={requiredSkills}
           onStatusChange={handleStatusChange}
           onDownload={handleDownload}
@@ -724,7 +795,7 @@ export default function ApplicationsReview({ jobId }: { jobId: string }) {
           count={rejected.length}
           color="red"
           apps={rejected}
-          isUnlocked={false}
+          isUnlocked={isUnlocked}
           requiredSkills={requiredSkills}
           onStatusChange={handleStatusChange}
           onDownload={handleDownload}

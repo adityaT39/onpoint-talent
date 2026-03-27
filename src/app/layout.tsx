@@ -25,7 +25,7 @@ export default function RootLayout({
         {/* Inline script prevents flash of wrong theme on load by applying saved preference before paint */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark');})();` }} />
       </head>
-      <body className={`${inter.variable} antialiased`}>
+      <body className={`${inter.variable} antialiased bg-white dark:bg-[#080e1c]`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

@@ -9,6 +9,7 @@ export type Job = {
   description: string;
   requirements: string;
   requiredSkills?: string[];
+  applyUrl?: string;
   postedAt: string;
 };
 

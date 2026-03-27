@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "@/context/AuthContext";
@@ -9,6 +9,19 @@ export default function Navbar() {
   const { user, mounted, logout } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -73,14 +86,53 @@ export default function Navbar() {
               <div className="w-20 h-9 rounded-full bg-slate-200 dark:bg-[#1e3356] animate-pulse" />
             </div>
           ) : isLoggedIn ? (
-            <>
-              <span className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">
-                Hi, {firstName}
-              </span>
-              <button onClick={logout} className={linkClass}>
-                Log out
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen((o) => !o)}
+                className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-slate-100 dark:hover:bg-[#1e3356] transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-slate-200 dark:ring-[#1e3356] flex-shrink-0">
+                  {user?.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-[#2563eb] dark:bg-[#3b82f6] flex items-center justify-center text-white text-xs font-bold select-none">
+                      {firstName[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">
+                  {firstName}
+                </span>
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
-            </>
+
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-slate-200 dark:border-[#1e3356] bg-white dark:bg-[#0e1a2e] shadow-lg py-1.5 z-50">
+                  {isEmployer ? (
+                    <>
+                      <a href="/employer" onClick={() => setProfileOpen(false)} className="block px-4 py-2 text-sm text-[#0f172a] dark:text-[#f1f5f9] hover:bg-slate-50 dark:hover:bg-[#152237]">Dashboard</a>
+                      <a href="/post-job" onClick={() => setProfileOpen(false)} className="block px-4 py-2 text-sm text-[#0f172a] dark:text-[#f1f5f9] hover:bg-slate-50 dark:hover:bg-[#152237]">Post a Job</a>
+                      <a href="/pricing" onClick={() => setProfileOpen(false)} className="block px-4 py-2 text-sm text-[#0f172a] dark:text-[#f1f5f9] hover:bg-slate-50 dark:hover:bg-[#152237]">Pricing</a>
+                    </>
+                  ) : (
+                    <>
+                      <a href="/dashboard" onClick={() => setProfileOpen(false)} className="block px-4 py-2 text-sm text-[#0f172a] dark:text-[#f1f5f9] hover:bg-slate-50 dark:hover:bg-[#152237]">My Applications</a>
+                      <a href="/profile" onClick={() => setProfileOpen(false)} className="block px-4 py-2 text-sm text-[#0f172a] dark:text-[#f1f5f9] hover:bg-slate-50 dark:hover:bg-[#152237]">Profile</a>
+                    </>
+                  )}
+                  <div className="border-t border-slate-100 dark:border-[#1e3356] my-1" />
+                  <button
+                    onClick={() => { setProfileOpen(false); logout(); }}
+                    className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-slate-50 dark:hover:bg-[#152237]"
+                  >
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <>
               <a href="/login" className={linkClass}>Log in</a>
@@ -144,9 +196,25 @@ export default function Navbar() {
           {/* Auth section */}
           {!mounted ? null : isLoggedIn ? (
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">
-                Hi, {firstName}
-              </span>
+              <a
+                href={isEmployer ? "/employer" : "/profile"}
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-2"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-slate-200 dark:ring-[#1e3356] flex-shrink-0">
+                  {user?.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-[#2563eb] dark:bg-[#3b82f6] flex items-center justify-center text-white text-xs font-bold select-none">
+                      {firstName[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-[#0f172a] dark:text-[#f1f5f9]">
+                  {firstName}
+                </span>
+              </a>
               <button
                 onClick={() => { setMenuOpen(false); logout(); }}
                 className="text-sm font-medium text-[#64748b] dark:text-[#94a3b8] hover:text-[#2563eb] dark:hover:text-[#60a5fa] transition-colors"

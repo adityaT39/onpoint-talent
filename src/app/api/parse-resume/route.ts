@@ -88,33 +88,24 @@ function parseSafeJson(raw: string): ParseResumeResult {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("[parse-resume] step 1: creating supabase client");
     const supabase = await createClient();
-
-    console.log("[parse-resume] step 2: getting user");
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { console.log("[parse-resume] no user"); return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    console.log("[parse-resume] step 3: checking role for user", user.id);
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
-    console.log("[parse-resume] role:", profile?.role);
     if (profile?.role !== "seeker") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    console.log("[parse-resume] step 4: parsing body");
     const body = await request.json();
     const text: string = typeof body.text === "string" ? body.text.slice(0, 40_000) : "";
-    console.log("[parse-resume] text length:", text.length);
     if (!text.trim()) return NextResponse.json(EMPTY_RESULT);
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    console.log("[parse-resume] step 5: api key present:", !!apiKey);
     if (!apiKey) return NextResponse.json(EMPTY_RESULT, { status: 500 });
 
-    console.log("[parse-resume] step 6: calling Claude");
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
@@ -123,13 +114,12 @@ export async function POST(request: NextRequest) {
       messages: [{ role: "user", content: `Extract structured profile data from this resume:\n\n${text}` }],
     });
 
-    console.log("[parse-resume] step 7: done");
     const rawText = message.content[0]?.type === "text" ? message.content[0].text : "";
     return NextResponse.json(parseSafeJson(rawText));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     const status = (err as { status?: number }).status;
-    console.error(`[parse-resume] CRASH at status=${status}: ${msg}`);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error(`[parse-resume] error (status=${status}): ${msg}`);
+    return NextResponse.json(EMPTY_RESULT, { status: 500 });
   }
 }

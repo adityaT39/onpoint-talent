@@ -57,8 +57,9 @@ export default function FeaturedJobs() {
         {/* Job Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {jobs.map((job, i) => (
-            <div
+            <a
               key={i}
+              href="/jobs"
               className="bg-white dark:bg-[#0e1a2e] rounded-2xl p-6 shadow-sm dark:shadow-none flex flex-col gap-4 border border-blue-100 dark:border-[#1e3356] hover:shadow-md dark:hover:border-[#3b82f6] transition-all"
             >
               <h3 className="text-base font-semibold text-[#0f172a] dark:text-[#f1f5f9]">{job.title}</h3>
@@ -76,10 +77,10 @@ export default function FeaturedJobs() {
                   <span>{job.salary}</span>
                 </div>
               </div>
-              <button className="mt-auto w-full py-2.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors">
+              <span className="mt-auto w-full py-2.5 text-sm font-semibold text-white bg-[#2563eb] dark:bg-[#3b82f6] rounded-full hover:bg-[#1d4ed8] dark:hover:bg-[#2563eb] transition-colors text-center">
                 View Job
-              </button>
-            </div>
+              </span>
+            </a>
           ))}
         </div>
       </div>

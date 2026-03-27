@@ -108,7 +108,7 @@ export default function ProfileEditor() {
       );
       const fields: ParseResumeResult = hasUsefulData
         ? aiFields!
-        : { ...extractProfileFields(text), summary: "", experience: [] };
+        : { ...extractProfileFields(text), summary: "", experience: [], education: [] };
 
       let filled = 0;
       setProfileDraft((d) => {
@@ -121,6 +121,10 @@ export default function ProfileEditor() {
         if (fields.experience.length > 0 && d.experience.length === 0) {
           next.experience = fields.experience;
           filled += fields.experience.length;
+        }
+        if (fields.education && fields.education.length > 0 && d.education.length === 0) {
+          next.education = fields.education;
+          filled += fields.education.length;
         }
         return next;
       });

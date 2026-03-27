@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase-server";
-import type { WorkExperience } from "@/types";
+import type { WorkExperience, Education } from "@/types";
 
 export type ParseResumeResult = {
   phone: string;
@@ -9,6 +9,7 @@ export type ParseResumeResult = {
   summary: string;
   skills: string[];
   experience: WorkExperience[];
+  education: Education[];
 };
 
 const SYSTEM_PROMPT = `You are a resume parser. Extract structured profile data from raw resume text.
@@ -28,17 +29,24 @@ The JSON must have exactly these keys:
       "duration": "date range e.g. Jan 2021 – Mar 2023",
       "description": "1–3 sentences of key responsibilities"
     }
+  ],
+  "education": [
+    {
+      "degree": "degree or certification name",
+      "institution": "school or institution name",
+      "year": "graduation year or date range e.g. 2018–2022"
+    }
   ]
 }
 
 Rules:
 - Use empty string or empty array when a field cannot be determined.
-- List experience in reverse chronological order.
+- List experience and education in reverse chronological order.
 - Do NOT invent information not present in the resume.
 - Return ONLY the JSON object.`;
 
 const EMPTY_RESULT: ParseResumeResult = {
-  phone: "", location: "", summary: "", skills: [], experience: [],
+  phone: "", location: "", summary: "", skills: [], experience: [], education: [],
 };
 
 function isValidWorkExperience(item: unknown): item is WorkExperience {
@@ -48,6 +56,12 @@ function isValidWorkExperience(item: unknown): item is WorkExperience {
     typeof o.role === "string" && typeof o.company === "string" &&
     typeof o.duration === "string" && typeof o.description === "string"
   );
+}
+
+function isValidEducation(item: unknown): item is Education {
+  if (typeof item !== "object" || item === null) return false;
+  const o = item as Record<string, unknown>;
+  return typeof o.degree === "string" && typeof o.institution === "string" && typeof o.year === "string";
 }
 
 function parseSafeJson(raw: string): ParseResumeResult {
@@ -65,6 +79,9 @@ function parseSafeJson(raw: string): ParseResumeResult {
       : [],
     experience: Array.isArray(o.experience)
       ? (o.experience as unknown[]).filter(isValidWorkExperience)
+      : [],
+    education: Array.isArray(o.education)
+      ? (o.education as unknown[]).filter(isValidEducation)
       : [],
   };
 }
